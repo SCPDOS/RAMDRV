@@ -1,0 +1,476 @@
+
+- NASM Map file ---------------------------------------------------------------
+
+Source file:  ramdrv.asm
+Output file:  ./bin/RAMDRV.SYS
+
+-- Program origin -------------------------------------------------------------
+
+00000000
+
+-- Sections (summary) ---------------------------------------------------------
+
+Vstart            Start             Stop              Length    Class     Name
+               0                 0               389  00000389  progbits  .text
+
+-- Sections (detailed) --------------------------------------------------------
+
+---- Section .text ------------------------------------------------------------
+
+class:     progbits
+length:                 389
+start:                    0
+align:     not defined
+follows:   not defined
+vstart:                   0
+valign:    not defined
+vfollows:  not defined
+
+-- Symbols --------------------------------------------------------------------
+
+---- No Section ---------------------------------------------------------------
+
+Value     Name
+00000000  errWpd
+00000001  errUnkUnt
+00000002  errDrvNR
+00000003  errUnkCmd
+00000004  errCRCerr
+00000005  errBadRLn
+00000006  errSekErr
+00000007  errUnkMed
+00000008  errSecNF
+00000009  errNoPap
+0000000A  errWF
+0000000B  errRF
+0000000C  errGF
+00000000  oemHeader
+00000000  oemHeader.jump
+00000003  oemHeader.oemString
+0000000B  oemHeader_size
+00000000  bpb
+00000000  bpb.bytsPerSec
+00000002  bpb.secPerClus
+00000003  bpb.revdSecCnt
+00000005  bpb.numFATs
+00000006  bpb.rootEntCnt
+00000008  bpb.totSec16
+0000000A  bpb.media
+0000000B  bpb.FATsz16
+0000000D  bpb.secPerTrk
+0000000F  bpb.numHeads
+00000011  bpb.hiddSec
+00000015  bpb.totSec32
+00000019  bpb_size
+00000000  extBs
+00000000  extBs.drvNum
+00000001  extBs.reserved1
+00000002  extBs.bootSig
+00000003  extBs.volId
+00000007  extBs.volLab
+00000012  extBs.filSysType
+0000001A  extBs_size
+00000029  extBsSig
+00000000  bpb32
+00000000  bpb32.bytsPerSec
+00000002  bpb32.secPerClus
+00000003  bpb32.revdSecCnt
+00000005  bpb32.numFATs
+00000006  bpb32.rootEntCnt
+00000008  bpb32.totSec16
+0000000A  bpb32.media
+0000000B  bpb32.FATsz16
+0000000D  bpb32.secPerTrk
+0000000F  bpb32.numHeads
+00000011  bpb32.hiddSec
+00000015  bpb32.totSec32
+00000019  bpb32.FATsz32
+0000001D  bpb32.extFlags
+0000001F  bpb32.FSver
+00000021  bpb32.RootClus
+00000025  bpb32.FSinfo
+00000027  bpb32.BkBootSec
+00000029  bpb32.reserved
+00000035  bpb32_size
+00000000  FSInfo
+00000000  FSInfo.leadSig
+00000004  FSInfo.reserved1
+000001E4  FSInfo.strucSig
+000001E8  FSInfo.freeCount
+000001EC  FSInfo.nextFree
+000001F0  FSInfo.reserved2
+000001FC  FSInfo.trailSig
+00000200  FSInfo_size
+41615252  fsInfoSig1
+61417272  fsInfoSig2
+AA550000  fsInfoSig3
+00000000  mbr
+00000000  mbr.bsCode
+000001B8  mbr.diskID
+000001BC  mbr.reserved
+000001BE  mbr.mbrEntry1
+000001CE  mbr.mbrEntry2
+000001DE  mbr.mbrEntry3
+000001EE  mbr.mbrEntry4
+000001FE  mbr.mbrSig
+00000200  mbr_size
+00000000  ebr
+00000000  ebr.bsCode
+000001BE  ebr.ebrVolHdr
+000001CE  ebr.ebrLinkHdr
+000001DE  ebr.reserved
+000001FE  ebr.mbrSig
+00000200  ebr_size
+00000000  mbrEntry
+00000000  mbrEntry.ptnAtrib
+00000001  mbrEntry.chsStart
+00000004  mbrEntry.ptnType
+00000005  mbrEntry.chsEnd
+00000008  mbrEntry.lbaStart
+0000000C  mbrEntry.numSectors
+00000010  mbrEntry_size
+00000000  fatDirEntry
+00000000  fatDirEntry.name
+0000000B  fatDirEntry.attribute
+0000000C  fatDirEntry.ntRes
+0000000D  fatDirEntry.crtTimeT
+0000000E  fatDirEntry.crtTime
+00000010  fatDirEntry.crtDate
+00000012  fatDirEntry.lastAccDat
+00000014  fatDirEntry.fstClusHi
+00000016  fatDirEntry.wrtTime
+00000018  fatDirEntry.wrtDate
+0000001A  fatDirEntry.fstClusLo
+0000001C  fatDirEntry.fileSize
+00000020  fatDirEntry_size
+00000001  dirReadOnly
+00000002  dirHidden
+00000004  dirSystem
+00000008  dirVolumeID
+00000010  dirDirectory
+00000020  dirArchive
+00000040  dirCharDev
+0000000F  dirLongName
+00000016  dirInclusive
+00000006  dirIncFiles
+00000000  bpbEx
+00000000  bpbEx.MustBeZero
+00000035  bpbEx.partitionOffset
+0000003D  bpbEx.volumeLength
+00000045  bpbEx.FAToffset
+00000049  bpbEx.FATlength
+0000004D  bpbEx.clusterHeapOffset
+00000051  bpbEx.clusterCount
+00000055  bpbEx.firstClusterOfRootDir
+00000059  bpbEx.volumeSerialNum
+0000005D  bpbEx.FSrevision
+0000005F  bpbEx.volumeFlags
+00000061  bpbEx.bytesPerSectorShift
+00000062  bpbEx.sectorsPerClusterShift
+00000063  bpbEx.numberOfFATs
+00000064  bpbEx.driveSelect
+00000065  bpbEx.percentInUse
+00000066  bpbEx.reserved
+0000006D  bpbEx_size
+00000000  drvHdr
+00000000  drvHdr.nxtPtr
+00000008  drvHdr.attrib
+0000000A  drvHdr.strPtr
+00000012  drvHdr.intPtr
+0000001A  drvHdr.drvUnt
+0000001A  drvHdr.drvNam
+00000022  drvHdr_size
+00000000  drvINIT
+00000001  drvMEDCHK
+00000002  drvBUILDBPB
+00000003  drvIOCTLREAD
+00000004  drvREAD
+00000005  drvNONDESTREAD
+00000006  drvINSTATUS
+00000007  drvFLUSHINBUF
+00000008  drvWRITE
+00000009  drvWRITEVERIFY
+0000000A  drvOUTSTATUS
+0000000B  drvFLUSHOUTBUF
+0000000C  drvIOCTLWRITE
+0000000D  drvOPEN
+0000000E  drvCLOSE
+0000000F  drvREMMEDCHECK
+00000010  drvOUTTILBUSY
+00000013  drvIOCTL
+00000017  drvGETDRVMAP
+00000018  drvSETDRVMAP
+00000018  drvMAXCMD
+00000000  drvWPErr
+00000001  drvBadUnit
+00000002  drvNotReady
+00000003  drvBadCmd
+00000004  drvCRCErr
+00000005  drvBadDrvReq
+00000006  drvBadSeek
+00000007  drvBadMed
+00000008  drvSecNotFnd
+00000009  drvNoPaper
+0000000A  drvWriteFault
+0000000B  drvReadFault
+0000000C  drvGenFault
+0000000F  drvBadDskChnge
+00008000  drvErrStatus
+00000100  drvDonStatus
+00000200  drvBsyStatus
+00000001  devDrvConIn
+00000002  devDrvConOut
+00000004  devDrvNulDev
+00000008  devDrvClockDev
+00000010  devDrvFastOut
+00000040  devDrvIOCTL
+00000800  devDrvHdlCTL
+00002000  devDrvNotIBM
+00002000  devDrvOutToBsy
+00004000  devDrvIOCTLRW
+00008000  devDrvChar
+00000000  drvReqPkt
+00000000  drvReqPkt.hdrlen
+00000001  drvReqPkt.unitnm
+00000002  drvReqPkt.cmdcde
+00000003  drvReqPkt.status
+00000005  drvReqPkt.devptr
+0000000D  drvReqPkt_size
+00000000  initReqPkt
+00000000  initReqPkt.hdrlen
+00000001  initReqPkt.unitnm
+00000002  initReqPkt.cmdcde
+00000003  initReqPkt.status
+00000005  initReqPkt.devptr
+0000000D  initReqPkt.numunt
+0000000E  initReqPkt.endptr
+00000016  initReqPkt.optptr
+0000001E  initReqPkt.drvnum
+0000001F  initReqPkt_size
+00000000  mediaCheckReqPkt
+00000000  mediaCheckReqPkt.hdrlen
+00000001  mediaCheckReqPkt.unitnm
+00000002  mediaCheckReqPkt.cmdcde
+00000003  mediaCheckReqPkt.status
+00000005  mediaCheckReqPkt.devptr
+0000000D  mediaCheckReqPkt.medesc
+0000000E  mediaCheckReqPkt.medret
+0000000F  mediaCheckReqPkt.desptr
+00000017  mediaCheckReqPkt_size
+00000000  bpbBuildReqPkt
+00000000  bpbBuildReqPkt.hdrlen
+00000001  bpbBuildReqPkt.unitnm
+00000002  bpbBuildReqPkt.cmdcde
+00000003  bpbBuildReqPkt.status
+00000005  bpbBuildReqPkt.devptr
+0000000D  bpbBuildReqPkt.medesc
+0000000E  bpbBuildReqPkt.bufptr
+00000016  bpbBuildReqPkt.bpbptr
+0000001E  bpbBuildReqPkt_size
+00000000  ioReqPkt
+00000000  ioReqPkt.hdrlen
+00000001  ioReqPkt.unitnm
+00000002  ioReqPkt.cmdcde
+00000003  ioReqPkt.status
+00000005  ioReqPkt.devptr
+0000000D  ioReqPkt.medesc
+0000000E  ioReqPkt.bufptr
+00000016  ioReqPkt.tfrlen
+0000001A  ioReqPkt.strtsc
+00000022  ioReqPkt.desptr
+0000002A  ioReqPkt_size
+00000000  ndInNoWaitPkt
+00000000  ndInNoWaitPkt.hdrlen
+00000001  ndInNoWaitPkt.unitnm
+00000002  ndInNoWaitPkt.cmdcde
+00000003  ndInNoWaitPkt.status
+00000005  ndInNoWaitPkt.devptr
+0000000D  ndInNoWaitPkt.retbyt
+0000000E  ndInNoWaitPkt_size
+00000000  statusReqPkt
+00000000  statusReqPkt.hdrlen
+00000001  statusReqPkt.unitnm
+00000002  statusReqPkt.cmdcde
+00000003  statusReqPkt.status
+00000005  statusReqPkt.devptr
+0000000D  statusReqPkt_size
+00000000  flushReqPkt
+00000000  flushReqPkt.hdrlen
+00000001  flushReqPkt.unitnm
+00000002  flushReqPkt.cmdcde
+00000003  flushReqPkt.status
+00000005  flushReqPkt.devptr
+0000000D  flushReqPkt_size
+00000000  openReqPkt
+00000000  openReqPkt.hdrlen
+00000001  openReqPkt.unitnm
+00000002  openReqPkt.cmdcde
+00000003  openReqPkt.status
+00000005  openReqPkt.devptr
+0000000D  openReqPkt_size
+00000000  closeReqPkt
+00000000  closeReqPkt.hdrlen
+00000001  closeReqPkt.unitnm
+00000002  closeReqPkt.cmdcde
+00000003  closeReqPkt.status
+00000005  closeReqPkt.devptr
+0000000D  closeReqPkt_size
+00000000  remMediaReqPkt
+00000000  remMediaReqPkt.hdrlen
+00000001  remMediaReqPkt.unitnm
+00000002  remMediaReqPkt.cmdcde
+00000003  remMediaReqPkt.status
+00000005  remMediaReqPkt.devptr
+0000000D  remMediaReqPkt_size
+00000000  ioctlReqPkt
+00000000  ioctlReqPkt.hdrlen
+00000001  ioctlReqPkt.unitnm
+00000002  ioctlReqPkt.cmdcde
+00000003  ioctlReqPkt.status
+00000005  ioctlReqPkt.devptr
+0000000D  ioctlReqPkt.majfun
+0000000E  ioctlReqPkt.minfun
+0000000F  ioctlReqPkt.rsival
+00000017  ioctlReqPkt.rdival
+0000001F  ioctlReqPkt.ctlptr
+00000027  ioctlReqPkt_size
+00000000  getDevReqPkt
+00000000  getDevReqPkt.hdrlen
+00000001  getDevReqPkt.unitnm
+00000002  getDevReqPkt.cmdcde
+00000003  getDevReqPkt.status
+00000005  getDevReqPkt.devptr
+0000000D  getDevReqPkt_size
+00000000  setDevReqPkt
+00000000  setDevReqPkt.hdrlen
+00000001  setDevReqPkt.unitnm
+00000002  setDevReqPkt.cmdcde
+00000003  setDevReqPkt.status
+00000005  setDevReqPkt.devptr
+0000000D  setDevReqPkt_size
+00000000  lbaParamsBlock
+00000000  lbaParamsBlock.bSize
+00000001  lbaParamsBlock.bSpecFuncs
+00000002  lbaParamsBlock.wDevFlgs
+00000004  lbaParamsBlock.wFSType
+00000006  lbaParamsBlock.wRes
+00000008  lbaParamsBlock.qSectorSize
+00000010  lbaParamsBlock.qNumSectors
+00000018  lbaParamsBlock.qStartSector
+00000020  lbaParamsBlock_size
+00000000  lbaIOBlock
+00000000  lbaIOBlock.size
+00000001  lbaIOBlock.numSectors
+00000002  lbaIOBlock.res
+00000008  lbaIOBlock.startSector
+00000010  lbaIOBlock.xferBuffer
+00000018  lbaIOBlock_size
+00000000  lbaFormatBlock
+00000000  lbaFormatBlock.size
+00000001  lbaFormatBlock.numSectors
+00000002  lbaFormatBlock.res
+00000008  lbaFormatBlock.startSector
+00000010  lbaFormatBlock_size
+00000000  chsParamsBlock
+00000000  chsParamsBlock.bSpecFuncs
+00000001  chsParamsBlock.bDevType
+00000002  chsParamsBlock.wDevFlgs
+00000004  chsParamsBlock.wNumCyl
+00000006  chsParamsBlock.bMedTyp
+00000007  chsParamsBlock.deviceBPB
+0000003C  chsParamsBlock.TrackLayout
+0000003C  chsParamsBlock_size
+00000001  specFuncBPB
+00000002  specFuncTrk
+00000004  specFuncSec
+00000000  chsIOBlock
+00000000  chsIOBlock.bSpecFuncs
+00000001  chsIOBlock.wStartHead
+00000003  chsIOBlock.wStartCyl
+00000005  chsIOBlock.wStartSector
+00000007  chsIOBlock.wNumSectors
+00000009  chsIOBlock.pXferBuffer
+00000011  chsIOBlock_size
+00000000  chsFormatBlock
+00000000  chsFormatBlock.bSpecFuncs
+00000001  chsFormatBlock.wStartHead
+00000003  chsFormatBlock.wStartCyl
+00000005  chsFormatBlock_size
+00000000  accFlgBlk
+00000000  accFlgBlk.bSpecFuncs
+00000001  accFlgBlk.bAccMode
+00000002  accFlgBlk_size
+00000000  idParamBlk
+00000000  idParamBlk.wCallLvl
+00000002  idParamBlk.volId
+00000006  idParamBlk.volLab
+00000011  idParamBlk.filSysType
+00000019  idParamBlk_size
+
+
+---- Section .text ------------------------------------------------------------
+
+Real              Virtual           Name
+               0                 0  header
+              22                22  dispTbl
+              4E                4E  ramBpb
+              4E                4E  ..@115.strucstart
+              67                67  bDrvInit
+              68                68  pReqPkt
+              70                70  pAlloc
+              78                78  wOpenCnt
+              7A                7A  qMaxSector
+              82                82  bUnitNumber
+              83                83  errBadCmd
+              8B                8B  errBadReqLen
+              91                91  ..@129._ret
+              92                92  strategy
+              99                99  ..@130._ret
+              9A                9A  interrupt
+              CE                CE  interrupt.exit
+              D9                D9  ..@131._ret
+              DA                DA  interrupt.checkUnit
+              DF                DF  ..@133._base
+              EB                EB  ..@135._base
+              F6                F6  medCheck
+              FF                FF  ..@136._ret
+             100               100  buildBpb
+             110               110  ..@137._ret
+             111               111  read
+             11F               11F  ..@139._base
+             131               131  ..@140._ret
+             132               132  write
+             140               140  ..@142._base
+             152               152  ..@143._ret
+             153               153  write.checkRange
+             17C               17C  ..@144._ret
+             17D               17D  write.badSector
+             183               183  ..@145._ret
+             184               184  open
+             196               196  ..@147._base
+             19F               19F  ..@148._ret
+             1A0               1A0  close
+             1B2               1B2  ..@150._base
+             1BB               1BB  ..@151._ret
+             1BC               1BC  remmed
+             1CB               1CB  ..@152._ret
+             1CC               1CC  ioctl
+             1D2               1D2  getDrvMap
+             1DF               1DF  ..@153._ret
+             1E0               1E0  init
+             1E9               1E9  eject
+             1E9               1E9  initMain
+             228               228  initMain.not128
+             238               238  initMain.not256
+             248               248  initMain.not1024
+             24F               24F  initMain.shiftOk
+             318               318  ..@154._ret
+             319               319  initMain.failinit
+             337               337  ..@155._ret
+             338               338  pBpbArray
+             340               340  initStr
+             35C               35C  initDoneStr
+             375               375  initFailStr
+             380               380  OEMstring
+             388               388  bBytSectShft
+

@@ -1,0 +1,82 @@
+
+;-------------------------------------------------------------------------------
+;Generic Macros file
+;The following instruction extensions allow to conditionally return
+;The idea was borrowed from the DOS Source Code
+;
+;-------------------------------------------------------------------------------
+
+;-------------------------------------------------------------------------------
+;These macros are live and must not be touched
+;-------------------------------------------------------------------------------
+%macro return 0
+%%_ret:
+    ret
+%assign retOff %%_ret-$$  ;Get offset into segment of %%_ret
+%endmacro
+
+%macro cret 1
+%%_base:
+%assign baseVar %%_base-$$ ;Get offset into segment of %%_base
+    %ifdef retOff
+    %if (baseVar - retOff <= 126) && (baseVar > retOff)
+    %ifdef currSegVBase
+    j%+1 short (retOff+currSegVBase)
+    %else
+    j%+1 short retOff
+    %endif  ;End ifdef currSegVBase
+    %else 
+    j%-1 short %%a
+    return
+%%a:
+    %endif  ;End the distance measurement if
+    %else   
+    j%-1 short %%a
+    return
+%%a:
+    %endif  ;End ifdef retoff
+%endmacro
+
+%macro retz 0
+cret z
+%endmacro
+
+%macro retnz 0
+cret nz
+%endmacro
+
+%macro rete 0
+cret e
+%endmacro
+
+%macro retne 0
+cret ne
+%endmacro
+
+%macro retc 0
+cret c
+%endmacro
+
+%macro retnc 0
+cret nc
+%endmacro
+
+%macro retb 0
+cret b
+%endmacro
+
+%macro retnb 0
+cret nb
+%endmacro
+
+%macro reta 0
+cret a
+%endmacro
+
+%macro retna 0
+cret na
+%endmacro
+
+%macro breakpoint 0
+xchg bx, bx
+%endmacro

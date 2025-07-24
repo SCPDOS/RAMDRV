@@ -1,0 +1,1190 @@
+     1                                  ; Join!
+     2                                  
+     3                                  [map all ./lst/ramdrv.map]
+     4                                  [DEFAULT REL]
+     5                                  
+     6                                  ;A device driver for a RAM disk
+     7                                  ;v1 creates a fixed 10Mb Ram Disk
+     8                                  
+     9                                  BITS 64
+    10                                  %include "./inc/dosMacro.mac"
+     1                              <1> 
+     2                              <1> ;-------------------------------------------------------------------------------
+     3                              <1> ;Generic Macros file
+     4                              <1> ;The following instruction extensions allow to conditionally return
+     5                              <1> ;The idea was borrowed from the DOS Source Code
+     6                              <1> ;
+     7                              <1> ;-------------------------------------------------------------------------------
+     8                              <1> 
+     9                              <1> ;-------------------------------------------------------------------------------
+    10                              <1> ;These macros are live and must not be touched
+    11                              <1> ;-------------------------------------------------------------------------------
+    12                              <1> %macro return 0
+    13                              <1> %%_ret:
+    14                              <1>     ret
+    15                              <1> %assign retOff %%_ret-$$  ;Get offset into segment of %%_ret
+    16                              <1> %endmacro
+    17                              <1> 
+    18                              <1> %macro cret 1
+    19                              <1> %%_base:
+    20                              <1> %assign baseVar %%_base-$$ ;Get offset into segment of %%_base
+    21                              <1>     %ifdef retOff
+    22                              <1>     %if (baseVar - retOff <= 126) && (baseVar > retOff)
+    23                              <1>     %ifdef currSegVBase
+    24                              <1>     j%+1 short (retOff+currSegVBase)
+    25                              <1>     %else
+    26                              <1>     j%+1 short retOff
+    27                              <1>     %endif  ;End ifdef currSegVBase
+    28                              <1>     %else 
+    29                              <1>     j%-1 short %%a
+    30                              <1>     return
+    31                              <1> %%a:
+    32                              <1>     %endif  ;End the distance measurement if
+    33                              <1>     %else   
+    34                              <1>     j%-1 short %%a
+    35                              <1>     return
+    36                              <1> %%a:
+    37                              <1>     %endif  ;End ifdef retoff
+    38                              <1> %endmacro
+    39                              <1> 
+    40                              <1> %macro retz 0
+    41                              <1> cret z
+    42                              <1> %endmacro
+    43                              <1> 
+    44                              <1> %macro retnz 0
+    45                              <1> cret nz
+    46                              <1> %endmacro
+    47                              <1> 
+    48                              <1> %macro rete 0
+    49                              <1> cret e
+    50                              <1> %endmacro
+    51                              <1> 
+    52                              <1> %macro retne 0
+    53                              <1> cret ne
+    54                              <1> %endmacro
+    55                              <1> 
+    56                              <1> %macro retc 0
+    57                              <1> cret c
+    58                              <1> %endmacro
+    59                              <1> 
+    60                              <1> %macro retnc 0
+    61                              <1> cret nc
+    62                              <1> %endmacro
+    63                              <1> 
+    64                              <1> %macro retb 0
+    65                              <1> cret b
+    66                              <1> %endmacro
+    67                              <1> 
+    68                              <1> %macro retnb 0
+    69                              <1> cret nb
+    70                              <1> %endmacro
+    71                              <1> 
+    72                              <1> %macro reta 0
+    73                              <1> cret a
+    74                              <1> %endmacro
+    75                              <1> 
+    76                              <1> %macro retna 0
+    77                              <1> cret na
+    78                              <1> %endmacro
+    79                              <1> 
+    80                              <1> %macro breakpoint 0
+    81                              <1> xchg bx, bx
+    82                              <1> %endmacro
+    11                                  %include "./inc/dosError.inc"
+     1                              <1> ;The following are Driver error codes + 19
+     2                              <1> errWpd      equ 0  ;Attempt to write on write protected disk
+     3                              <1> errUnkUnt   equ 1  ;Unknown Unit
+     4                              <1> errDrvNR    equ 2  ;Drive not ready
+     5                              <1> errUnkCmd   equ 3  ;Unknown Command
+     6                              <1> errCRCerr   equ 4  ;Data (CRC) error
+     7                              <1> errBadRLn   equ 5  ;Bad request structure length
+     8                              <1> errSekErr   equ 6  ;Seek error
+     9                              <1> errUnkMed   equ 7  ;Unknown media type
+    10                              <1> errSecNF    equ 8  ;Sector not Found
+    11                              <1> errNoPap    equ 9  ;Printer out of paper
+    12                              <1> errWF       equ 10  ;Write fault
+    13                              <1> errRF       equ 11  ;Read fault
+    14                              <1> errGF       equ 12  ;General fault
+    12                                  %include "./inc/fatStruc.inc"
+     1                              <1> 
+     2                              <1> ;-------------------------------------------------------;
+     3                              <1> ; This include file contains miscellaneous FAT driver   ;
+     4                              <1> ; structures. exFAT will have it's own files at a later ;
+     5                              <1> ; stage.                                                ;
+     6                              <1> ;-------------------------------------------------------;
+     7                              <1> ;-------------------------------------------------------;
+     8                              <1> ;-------------------------------------------------------;
+     9                              <1> ;  IMPORTANT!!! IMPORTANT!!! IMPORTANT!!! IMPORTANT!!!  ;
+    10                              <1> ;   REMEMBER, CLUSTER NUMBERS START AT 2!               ;
+    11                              <1> ;   THE FIRST DATA CLUSTER ON A DISK IS CLUSTER 2!!!    ;
+    12                              <1> ;   ON FAT12/16, A CLUSTER NUMBER OF 0 MEANS ROOT DIR!  ;
+    13                              <1> ;   ON FAT32, A CLUSTER NUMBER OF 0 ALIASES THE FIRST   ;
+    14                              <1> ;       CLUSTER OF THE ROOT DIRECTORY!!                 ;
+    15                              <1> ;  IMPORTANT!!! IMPORTANT!!! IMPORTANT!!! IMPORTANT!!!  ;
+    16                              <1> ;-------------------------------------------------------;
+    17                              <1> 
+    18                              <1> struc oemHeader
+    19 00000000 ??????              <1>     .jump       db 3 dup (?)    ;Jump instruction
+    20 00000003 ????????????????    <1>     .oemString  db 8 dup (?)    ;OEM string
+    21                              <1> endstruc
+    22                              <1> 
+    23                              <1> struc bpb          ;FAT 12 and 16 BPB
+    24 00000000 ????                <1>     .bytsPerSec dw ?  ;Bytes per sector
+    25 00000002 ??                  <1>     .secPerClus db ?  ;Sectors per cluster
+    26 00000003 ????                <1>     .revdSecCnt dw ?  ;Number of reserved sectors, in volume
+    27 00000005 ??                  <1>     .numFATs    db ?  ;Number of FATs on media
+    28 00000006 ????                <1>     .rootEntCnt dw ?  ;Number of 32 byte entries in Root directory
+    29 00000008 ????                <1>     .totSec16   dw ?  ;Number of sectors on medium
+    30 0000000A ??                  <1>     .media      db ?  ;Media descriptor byte
+    31 0000000B ????                <1>     .FATsz16    dw ?  ;Number of sectors per FAT
+    32 0000000D ????                <1>     .secPerTrk  dw ?  ;Number of sectors per "track"
+    33 0000000F ????                <1>     .numHeads   dw ?  ;Number of read "heads"
+    34 00000011 ????????            <1>     .hiddSec    dd ?  ;Number of hidden sectors, preceeding volume start
+    35 00000015 ????????            <1>     .totSec32   dd ?  ;32 bit count of sectors
+    36                              <1> endstruc
+    37                              <1> 
+    38                              <1> struc extBs
+    39                              <1> ;Extended bootsector structure. If present, comes immediately after 
+    40                              <1> ; BPB in bootsector
+    41 00000000 ??                  <1>     .drvNum     db ?  ;Logical drive number (00h or 80h)
+    42 00000001 ??                  <1>     .reserved1  db ?  ;Reserved byte
+    43 00000002 ??                  <1>     .bootSig    db ?  ;Extended boot signature
+    44 00000003 ????????            <1>     .volId      dd ?  ;Volume serial number
+    45 00000007 <res Bh>            <1>     .volLab     db 11 dup (?) ;Volume label string
+    46 00000012 ????????????????    <1>     .filSysType db 8 dup (?)  ;File system type string
+    47                              <1> endstruc
+    48                              <1> extBsSig    equ 29h
+    49                              <1> 
+    50                              <1> struc bpb32       ;FAT 32 BPB
+    51 00000000 ????                <1>     .bytsPerSec dw ?  ;Bytes per sector
+    52 00000002 ??                  <1>     .secPerClus db ?  ;Sectors per cluster
+    53 00000003 ????                <1>     .revdSecCnt dw ?  ;Number of reserved sectors
+    54 00000005 ??                  <1>     .numFATs    db ?  ;Number of FATs on media
+    55 00000006 ????                <1>     .rootEntCnt dw ?  ;Number of entries in Root directory
+    56 00000008 ????                <1>     .totSec16   dw ?  ;Number of sectors on medium
+    57 0000000A ??                  <1>     .media      db ?  ;Media descriptor byte
+    58 0000000B ????                <1>     .FATsz16    dw ?  ;Number of sectors per FAT, must be 0 for FAT 32
+    59 0000000D ????                <1>     .secPerTrk  dw ?  ;Number of sectors per "track"
+    60 0000000F ????                <1>     .numHeads   dw ?  ;Number of read "heads"
+    61 00000011 ????????            <1>     .hiddSec    dd ?  ;Number of hidden sectors
+    62 00000015 ????????            <1>     .totSec32   dd ?  ;32 bit count of sectors
+    63 00000019 ????????            <1>     .FATsz32    dd ?  ;32 bit count of sectors occupied by one FAT
+    64 0000001D ????                <1>     .extFlags   dw ?  ;Extended Flags word
+    65 0000001F ????                <1>     .FSver      dw ?  ;File system version word, must be 0
+    66 00000021 ????????            <1>     .RootClus   dd ?  ;First Cluster of Root Directory
+    67 00000025 ????                <1>     .FSinfo     dw ?  ;Sector number of FSINFO structure, usually 1
+    68 00000027 ????                <1>     .BkBootSec  dw ?  ;Backup Boot sector, either 0 or 6
+    69 00000029 <res Ch>            <1>     .reserved   db 12 dup (?) ;Reserved 12 bytes
+    70                              <1> endstruc
+    71                              <1> 
+    72                              <1> struc FSInfo
+    73 00000000 ????????            <1>     .leadSig    dd ? ;Leading Signature, should be 041615252h
+    74 00000004 <res 1E0h>          <1>     .reserved1  db 480 dup (?)
+    75 000001E4 ????????            <1>     .strucSig   dd ?  ;Should be 061417272h
+    76 000001E8 ????????            <1>     .freeCount  dd ?  ;Contains the last known free cluster on volume
+    77 000001EC ????????            <1>     .nextFree   dd ?  ;Contains the first known free cluster on volume
+    78 000001F0 <res Ch>            <1>     .reserved2  db 12 dup (?) ;Should be 0
+    79 000001FC ????????            <1>     .trailSig   dd ?  ;Should be 0AA550000h
+    80                              <1> endstruc
+    81                              <1> 
+    82                              <1> fsInfoSig1  equ 041615252h
+    83                              <1> fsInfoSig2  equ 061417272h
+    84                              <1> fsInfoSig3  equ 0AA550000h
+    85                              <1> 
+    86                              <1> struc mbr
+    87 00000000 <res 1B8h>          <1>     .bsCode     db 440 dup (?)
+    88 000001B8 ????????            <1>     .diskID     dd ?
+    89 000001BC ????                <1>     .reserved   dw ?
+    90 000001BE <res 10h>           <1>     .mbrEntry1  db 16 dup (?)
+    91 000001CE <res 10h>           <1>     .mbrEntry2  db 16 dup (?)
+    92 000001DE <res 10h>           <1>     .mbrEntry3  db 16 dup (?)
+    93 000001EE <res 10h>           <1>     .mbrEntry4  db 16 dup (?)
+    94 000001FE ????                <1>     .mbrSig     dw ?
+    95                              <1> endstruc
+    96                              <1> 
+    97                              <1> struc ebr   ;A special type of MBR
+    98 00000000 <res 1BEh>          <1>     .bsCode     db 446 dup (?)    ;Basic 16-bit code to error if launched into
+    99 000001BE <res 10h>           <1>     .ebrVolHdr  db 16 dup (?) ;Information about the volume itself
+   100 000001CE <res 10h>           <1>     .ebrLinkHdr db 16 dup (?) ;Link ptr to next logical volume in ebr
+   101 000001DE <res 20h>           <1>     .reserved   db 32 dup (?) ;Reserved
+   102 000001FE ????                <1>     .mbrSig     dw ?
+   103                              <1> endstruc
+   104                              <1> 
+   105                              <1> struc mbrEntry
+   106 00000000 ??                  <1>     .ptnAtrib   db ?  ;80h = active
+   107 00000001 ??????              <1>     .chsStart   db 3 dup (?)  ;Ignore practically
+   108 00000004 ??                  <1>     .ptnType    db ?  ;This being 00 means free
+   109 00000005 ??????              <1>     .chsEnd     db 3 dup (?)  ;Ignore
+   110 00000008 ????????            <1>     .lbaStart   dd ?  ;Start of partition in 32 bit LBA
+   111 0000000C ????????            <1>     .numSectors dd ?  ;Number of sectors in partition
+   112                              <1> endstruc
+   113                              <1> 
+   114                              <1> struc fatDirEntry
+   115 00000000 <res Bh>            <1>     .name       db 11 dup (?) ;8.3 File Name w/o fullstop
+   116 0000000B ??                  <1>     .attribute  db ?  ;Usual attributes
+   117 0000000C ??                  <1>     .ntRes      db ?  ;Reserved 0
+   118 0000000D ??                  <1>     .crtTimeT   db ?  ;Count of tenths of a second of file creation time <=199
+   119 0000000E ????                <1>     .crtTime    dw ?  ;Creation time, granularity of 2 seconds
+   120 00000010 ????                <1>     .crtDate    dw ?  ;Creation date
+   121 00000012 ????                <1>     .lastAccDat dw ?  ;Last Read/Write date, not 100% supported (consider later)
+   122 00000014 ????                <1>     .fstClusHi  dw ?  ;Hi word of 1st data cluster for file/dir, 0 on FAT12/16
+   123 00000016 ????                <1>     .wrtTime    dw ?  ;Last modification (write) time
+   124 00000018 ????                <1>     .wrtDate    dw ?  ;Last modification (write) date
+   125 0000001A ????                <1>     .fstClusLo  dw ?  ;Lo word of 1st data cluster for file/dir
+   126 0000001C ????????            <1>     .fileSize   dd ?  ;32-bit quantity with size of file described by entry
+   127                              <1> endstruc
+   128                              <1> ;Directory attribute equates
+   129                              <1>     dirReadOnly     equ 01h
+   130                              <1>     dirHidden       equ 02h
+   131                              <1>     dirSystem       equ 04h
+   132                              <1>     dirVolumeID     equ 08h
+   133                              <1>     dirDirectory    equ 10h
+   134                              <1>     dirArchive      equ 20h
+   135                              <1>     dirCharDev      equ 40h ;Never written to disk, used to represent a Char Dev
+   136                              <1>     dirLongName     equ dirReadOnly | dirHidden | dirSystem | dirVolumeID
+   137                              <1>     ;If any of the three bits are set, then ALL three bits are set
+   138                              <1>     ; in addition to whatever the user passed to search for.
+   139                              <1>     dirInclusive    equ dirHidden | dirSystem | dirDirectory
+   140                              <1>     dirIncFiles     equ dirHidden | dirSystem
+   141                              <1> 
+   142                              <1> struc bpbEx   ;exFAT BPB, SIZE: 120 bytes
+   143                              <1> 
+   144                              <1>     ;.jmpBoot                db 3 dup (?)
+   145                              <1>     ;.oemName                db 8 dup (?)  ;OEM name
+   146                              <1> ;BPB starts here
+   147 00000000 <res 35h>           <1>     .MustBeZero             db 53 dup (?) ;Must be 0, 53 bytes
+   148 00000035 ????????????????    <1>     .partitionOffset        dq ?  ;in sectors, 0 means ignore this field
+   149 0000003D ????????????????    <1>     .volumeLength           dq ?  ;Volume Length in sectors
+   150 00000045 ????????            <1>     .FAToffset              dd ?  ;Volume rel offset of first FAT, in sectors
+   151 00000049 ????????            <1>     .FATlength              dd ?  ;FAT length, in sectors
+   152 0000004D ????????            <1>     .clusterHeapOffset      dd ?  ;Start of data area, in sectors
+   153 00000051 ????????            <1>     .clusterCount           dd ?  ;Number of clusters on medium
+   154 00000055 ????????            <1>     .firstClusterOfRootDir  dd ?  ;First Cluster of Root Directory, min 2
+   155 00000059 ????????            <1>     .volumeSerialNum        dd ?  ;Volume Serial Number
+   156 0000005D ????                <1>     .FSrevision             dw ?  ;Should be 0001 (v1.00)
+   157 0000005F ????                <1>     .volumeFlags            dw ?  ;Volume Flags, refer to documentation
+   158 00000061 ??                  <1>     .bytesPerSectorShift    db ?  ;min 9 (512 bps), max 12 (4096 bps)
+   159 00000062 ??                  <1>     .sectorsPerClusterShift db ?  ;Result of log_2(N) for N=sec per clus
+   160 00000063 ??                  <1>     .numberOfFATs           db ?  ;Number of FATs, only 1 or 2
+   161 00000064 ??                  <1>     .driveSelect            db ?  ;Drive Select, 0 or 80h (Int 13h)
+   162 00000065 ??                  <1>     .percentInUse           db ?  ;Rounded down. FFh means unknown
+   163 00000066 ??????????????      <1>     .reserved               db 7 dup (?)  ;Reserved for alignment
+   164                              <1> 
+   165                              <1> endstruc
+    13                                  %include "./inc/drvStruc.inc"
+     1                              <1> 
+     2                              <1> ;-------------------------------------------------------;
+     3                              <1> ; This include file contains miscellaneous SCP/DOS      ;
+     4                              <1> ; device driver related structures.                     ;
+     5                              <1> ;-------------------------------------------------------;
+     6                              <1> 
+     7                              <1> struc drvHdr  ;Device Driver Header for character and block devices
+     8                              <1> 
+     9 00000000 ????????????????    <1>     .nxtPtr dq ?  ;Pointer to the next driver header, -1 if at the end
+    10 00000008 ????                <1>     .attrib dw ?  ;Attribute Word
+    11 0000000A ????????????????    <1>     .strPtr dq ?  ;Strategy Entry Pointer
+    12 00000012 ????????????????    <1>     .intPtr dq ?  ;Interrupt Entry Pointer
+    13                              <1>     .drvUnt:        ;Number of units pointer
+    14 0000001A ????????????????    <1>     .drvNam db 8 dup (?)  ;Driver name (Char) or Number of units byte (Block)
+    15                              <1> 
+    16                              <1> endstruc
+    17                              <1> 
+    18                              <1> ;Command Code equates
+    19                              <1>     drvINIT         equ 0
+    20                              <1>     drvMEDCHK       equ 1
+    21                              <1>     drvBUILDBPB     equ 2
+    22                              <1>     drvIOCTLREAD    equ 3
+    23                              <1>     drvREAD         equ 4
+    24                              <1>     drvNONDESTREAD  equ 5
+    25                              <1>     drvINSTATUS     equ 6
+    26                              <1>     drvFLUSHINBUF   equ 7
+    27                              <1>     drvWRITE        equ 8
+    28                              <1>     drvWRITEVERIFY  equ 9
+    29                              <1>     drvOUTSTATUS    equ 10
+    30                              <1>     drvFLUSHOUTBUF  equ 11
+    31                              <1>     drvIOCTLWRITE   equ 12
+    32                              <1>     drvOPEN         equ 13
+    33                              <1>     drvCLOSE        equ 14
+    34                              <1>     drvREMMEDCHECK  equ 15
+    35                              <1>     drvOUTTILBUSY   equ 16
+    36                              <1>     drvIOCTL        equ 19
+    37                              <1>     drvGETDRVMAP    equ 23
+    38                              <1>     drvSETDRVMAP    equ 24
+    39                              <1>     drvMAXCMD       equ 24
+    40                              <1> ;Driver Error equates 
+    41                              <1>     drvWPErr        equ 0   ;Write Protect Violation
+    42                              <1>     drvBadUnit      equ 1   ;Unknown unit
+    43                              <1>     drvNotReady     equ 2   ;Device not ready
+    44                              <1>     drvBadCmd       equ 3   ;Unknown command
+    45                              <1>     drvCRCErr       equ 4   ;CRC Error
+    46                              <1>     drvBadDrvReq    equ 5   ;Bad drive request structure length
+    47                              <1>     drvBadSeek      equ 6   ;Seek error
+    48                              <1>     drvBadMed       equ 7   ;Unknown media
+    49                              <1>     drvSecNotFnd    equ 8   ;Sector not found
+    50                              <1>     drvNoPaper      equ 9   ;Printer out of paper
+    51                              <1>     drvWriteFault   equ 10  ;Write Fault
+    52                              <1>     drvReadFault    equ 11  ;Read Fault
+    53                              <1>     drvGenFault     equ 12  ;General Fault
+    54                              <1>     drvBadDskChnge  equ 15  ;Invalid disk change
+    55                              <1> 
+    56                              <1> ;Driver status word status bit meanings
+    57                              <1>     drvErrStatus    equ 8000h  
+    58                              <1>     drvDonStatus    equ 0100h
+    59                              <1>     drvBsyStatus    equ 0200h
+    60                              <1> 
+    61                              <1> ;Driver Attribute Word bit meanings
+    62                              <1>     devDrvConIn     equ 1h  ;If set, device is CON input
+    63                              <1>     devDrvConOut    equ 2h  ;If set, device is CON output
+    64                              <1>     devDrvNulDev    equ 4h  ;If set, device is NULL device
+    65                              <1>     devDrvClockDev  equ 8h  ;If set, device is CLOCK device
+    66                              <1>     devDrvFastOut   equ 10h ;If set, device supports Int 29h
+    67                              <1>     devDrvIOCTL     equ 40h ;If set, IOCTL and GET/SET suported
+    68                              <1>     devDrvHdlCTL    equ 800h ;If set, Open, Close and Rem media supported
+    69                              <1>     devDrvNotIBM    equ 2000h ;If set, buffer in Build BPB is scratch space
+    70                              <1>     devDrvOutToBsy  equ 2000h ;If set, char dev supports output until busy
+    71                              <1>     devDrvIOCTLRW   equ 4000h ;If set, IOCTL Read/Write supported
+    72                              <1>     devDrvChar      equ 8000h ;If set, Char device
+    73                              <1> ;Bit 0 1=console input
+    74                              <1> ;    1 1=console output (character devices)
+    75                              <1> ;    2 1=NUL device
+    76                              <1> ;    3 1=CLOCK device
+    77                              <1> ;    4 1=Int 29 output (CON)
+    78                              <1> ;    6 1=extended functions supported (13,17,18) (3.2+)
+    79                              <1> ;    7 1=query IOCTL function supported (19) (5.0+)
+    80                              <1> ;   11 1=open/close/removable media supported (3.0+)
+    81                              <1> ;   13 1=output until busy supported (character devices) (3.0+)
+    82                              <1> ;      1=media descriptor in FAT required (block devices)
+    83                              <1> ;   14 1=IOCTL supported
+    84                              <1> ;   15 0=block device
+    85                              <1> ;      1=character device
+    86                              <1> 
+    87                              <1> ;Driver structures
+    88                              <1> 
+    89                              <1> %macro drvReqPktM 0 ;Driver Request Header Macro
+    90                              <1> 
+    91                              <1>     .hdrlen db ?  ;Length of the request header
+    92                              <1>     .unitnm db ?  ;Unit number, meaningless for character devs
+    93                              <1>     .cmdcde db ?  ;Command code
+    94                              <1>     .status dw ?  ;Status word
+    95                              <1>     .devptr dq ?  ;Device queue pointer field, reserved for future use
+    96                              <1> 
+    97                              <1> %endmacro
+    98                              <1> 
+    99                              <1> struc drvReqPkt
+   100                              <1>     drvReqPktM
+    90                              <2> 
+    91 00000000 ??                  <2>  .hdrlen db ?
+    92 00000001 ??                  <2>  .unitnm db ?
+    93 00000002 ??                  <2>  .cmdcde db ?
+    94 00000003 ????                <2>  .status dw ?
+    95 00000005 ????????????????    <2>  .devptr dq ?
+    96                              <2> 
+   101                              <1> endstruc
+   102                              <1> 
+   103                              <1> struc initReqPkt  ;Init Request Packet
+   104                              <1> 
+   105                              <1>     drvReqPktM   ;Common Driver Header Macro
+    90                              <2> 
+    91 00000000 ??                  <2>  .hdrlen db ?
+    92 00000001 ??                  <2>  .unitnm db ?
+    93 00000002 ??                  <2>  .cmdcde db ?
+    94 00000003 ????                <2>  .status dw ?
+    95 00000005 ????????????????    <2>  .devptr dq ?
+    96                              <2> 
+   106 0000000D ??                  <1>     .numunt db ?  ;Number of logical units (Block only, 0 for char)
+   107 0000000E ????????????????    <1>     .endptr dq ?  ;Pointer to first free byte after driver
+   108 00000016 ????????????????    <1>     .optptr dq ?  ;Ptr to BPB array (blkdev) or cmdline args
+   109 0000001E ??                  <1>     .drvnum db ?  ;First Drive number
+   110                              <1> 
+   111                              <1> endstruc
+   112                              <1> 
+   113                              <1> struc mediaCheckReqPkt ;Media Check Request Packet
+   114                              <1> 
+   115                              <1>     drvReqPktM    ;Common Driver Header Macro
+    90                              <2> 
+    91 00000000 ??                  <2>  .hdrlen db ?
+    92 00000001 ??                  <2>  .unitnm db ?
+    93 00000002 ??                  <2>  .cmdcde db ?
+    94 00000003 ????                <2>  .status dw ?
+    95 00000005 ????????????????    <2>  .devptr dq ?
+    96                              <2> 
+   116 0000000D ??                  <1>     .medesc db ?  ;DOS media descriptor
+   117 0000000E ??                  <1>     .medret db ?  ;Return byte (Has media been changed?)
+   118 0000000F ????????????????    <1>     .desptr dq ?  ;Pointer to a valid volume id field
+   119                              <1> 
+   120                              <1> endstruc
+   121                              <1> 
+   122                              <1> struc bpbBuildReqPkt  ;Build BPB Request Packet
+   123                              <1> 
+   124                              <1>     drvReqPktM    ;Common Driver Header Macro
+    90                              <2> 
+    91 00000000 ??                  <2>  .hdrlen db ?
+    92 00000001 ??                  <2>  .unitnm db ?
+    93 00000002 ??                  <2>  .cmdcde db ?
+    94 00000003 ????                <2>  .status dw ?
+    95 00000005 ????????????????    <2>  .devptr dq ?
+    96                              <2> 
+   125 0000000D ??                  <1>     .medesc db ?  ;DOS media descriptor
+   126 0000000E ????????????????    <1>     .bufptr dq ?  ;Transfer buffer
+   127 00000016 ????????????????    <1>     .bpbptr dq ?  ;Pointer to the BPB
+   128                              <1> 
+   129                              <1> endstruc
+   130                              <1> 
+   131                              <1> struc ioReqPkt   ;IO Request Packet
+   132                              <1> 
+   133                              <1>     drvReqPktM    ;Common Driver Header Macro
+    90                              <2> 
+    91 00000000 ??                  <2>  .hdrlen db ?
+    92 00000001 ??                  <2>  .unitnm db ?
+    93 00000002 ??                  <2>  .cmdcde db ?
+    94 00000003 ????                <2>  .status dw ?
+    95 00000005 ????????????????    <2>  .devptr dq ?
+    96                              <2> 
+   134 0000000D ??                  <1>     .medesc db ?  ;DOS media descriptor
+   135 0000000E ????????????????    <1>     .bufptr dq ?  ;Transfer buffer
+   136 00000016 ????????            <1>     .tfrlen dd ?  ;Number of Sectors/bytes to transfer
+   137 0000001A ????????????????    <1>     .strtsc dq ?  ;Starting sector for transfer
+   138 00000022 ????????????????    <1>     .desptr dq ?  ;Pointer to a valid volume id field if error
+   139                              <1> 
+   140                              <1> endstruc
+   141                              <1> 
+   142                              <1> struc ndInNoWaitPkt    ;Nondestructive Input No Wait Request Packet
+   143                              <1>     
+   144                              <1>     drvReqPktM    ;Common Driver Header Macro
+    90                              <2> 
+    91 00000000 ??                  <2>  .hdrlen db ?
+    92 00000001 ??                  <2>  .unitnm db ?
+    93 00000002 ??                  <2>  .cmdcde db ?
+    94 00000003 ????                <2>  .status dw ?
+    95 00000005 ????????????????    <2>  .devptr dq ?
+    96                              <2> 
+   145 0000000D ??                  <1>     .retbyt db ?  ;Byte read non destructively
+   146                              <1> 
+   147                              <1> endstruc
+   148                              <1> 
+   149                              <1> struc statusReqPkt   ;Status Request Packet
+   150                              <1> 
+   151                              <1>     drvReqPktM    ;Common Driver Header Macro
+    90                              <2> 
+    91 00000000 ??                  <2>  .hdrlen db ?
+    92 00000001 ??                  <2>  .unitnm db ?
+    93 00000002 ??                  <2>  .cmdcde db ?
+    94 00000003 ????                <2>  .status dw ?
+    95 00000005 ????????????????    <2>  .devptr dq ?
+    96                              <2> 
+   152                              <1> 
+   153                              <1> endstruc
+   154                              <1> 
+   155                              <1> struc flushReqPkt ;Flush Request Packet, terminate all pending requests
+   156                              <1> 
+   157                              <1>     drvReqPktM    ;Common Driver Header Macro
+    90                              <2> 
+    91 00000000 ??                  <2>  .hdrlen db ?
+    92 00000001 ??                  <2>  .unitnm db ?
+    93 00000002 ??                  <2>  .cmdcde db ?
+    94 00000003 ????                <2>  .status dw ?
+    95 00000005 ????????????????    <2>  .devptr dq ?
+    96                              <2> 
+   158                              <1>      
+   159                              <1> endstruc
+   160                              <1> 
+   161                              <1> struc openReqPkt ;Open Device Request Packet
+   162                              <1> 
+   163                              <1>     drvReqPktM    ;Common Driver Header Macro
+    90                              <2> 
+    91 00000000 ??                  <2>  .hdrlen db ?
+    92 00000001 ??                  <2>  .unitnm db ?
+    93 00000002 ??                  <2>  .cmdcde db ?
+    94 00000003 ????                <2>  .status dw ?
+    95 00000005 ????????????????    <2>  .devptr dq ?
+    96                              <2> 
+   164                              <1>      
+   165                              <1> endstruc
+   166                              <1> 
+   167                              <1> struc closeReqPkt ;Close Device Request Packet
+   168                              <1> 
+   169                              <1>     drvReqPktM    ;Common Driver Header Macro
+    90                              <2> 
+    91 00000000 ??                  <2>  .hdrlen db ?
+    92 00000001 ??                  <2>  .unitnm db ?
+    93 00000002 ??                  <2>  .cmdcde db ?
+    94 00000003 ????                <2>  .status dw ?
+    95 00000005 ????????????????    <2>  .devptr dq ?
+    96                              <2> 
+   170                              <1>      
+   171                              <1> endstruc
+   172                              <1> 
+   173                              <1> struc remMediaReqPkt ;Removeable Media Request Packet
+   174                              <1> 
+   175                              <1>     drvReqPktM    ;Common Driver Header Macro
+    90                              <2> 
+    91 00000000 ??                  <2>  .hdrlen db ?
+    92 00000001 ??                  <2>  .unitnm db ?
+    93 00000002 ??                  <2>  .cmdcde db ?
+    94 00000003 ????                <2>  .status dw ?
+    95 00000005 ????????????????    <2>  .devptr dq ?
+    96                              <2> 
+   176                              <1>      
+   177                              <1> endstruc
+   178                              <1> 
+   179                              <1> struc ioctlReqPkt    ;Generic IOCTL Request Packet
+   180                              <1> 
+   181                              <1>     drvReqPktM    ;Common Driver Header Macro  
+    90                              <2> 
+    91 00000000 ??                  <2>  .hdrlen db ?
+    92 00000001 ??                  <2>  .unitnm db ?
+    93 00000002 ??                  <2>  .cmdcde db ?
+    94 00000003 ????                <2>  .status dw ?
+    95 00000005 ????????????????    <2>  .devptr dq ?
+    96                              <2> 
+   182 0000000D ??                  <1>     .majfun db ?  ;Major function number
+   183 0000000E ??                  <1>     .minfun db ?  ;Minor function number
+   184 0000000F ????????????????    <1>     .rsival dq ?  ;Contents of RSI
+   185 00000017 ????????????????    <1>     .rdival dq ?  ;Contents of RDI
+   186 0000001F ????????????????    <1>     .ctlptr dq ?  ;Pointer to Generic IOCTL Request Packet
+   187                              <1> 
+   188                              <1> endstruc
+   189                              <1> 
+   190                              <1> struc getDevReqPkt ;Get Logical Device Request Packet
+   191                              <1>     
+   192                              <1>     drvReqPktM    ;Common Driver Header Macro
+    90                              <2> 
+    91 00000000 ??                  <2>  .hdrlen db ?
+    92 00000001 ??                  <2>  .unitnm db ?
+    93 00000002 ??                  <2>  .cmdcde db ?
+    94 00000003 ????                <2>  .status dw ?
+    95 00000005 ????????????????    <2>  .devptr dq ?
+    96                              <2> 
+   193                              <1> 
+   194                              <1> endstruc
+   195                              <1> 
+   196                              <1> struc setDevReqPkt ;Set Logical Device Request Packet
+   197                              <1>     
+   198                              <1>     drvReqPktM    ;Common Driver Header Macro
+    90                              <2> 
+    91 00000000 ??                  <2>  .hdrlen db ?
+    92 00000001 ??                  <2>  .unitnm db ?
+    93 00000002 ??                  <2>  .cmdcde db ?
+    94 00000003 ????                <2>  .status dw ?
+    95 00000005 ????????????????    <2>  .devptr dq ?
+    96                              <2> 
+   199                              <1> 
+   200                              <1> endstruc
+   201                              <1> ;IOCTL structs
+   202                              <1> 
+   203                              <1> struc lbaParamsBlock
+   204 00000000 ??                  <1>     .bSize          db ?
+   205 00000001 ??                  <1>     .bSpecFuncs     db ?    ;0 = Update drive info from medium and return that
+   206                              <1>                             ;1 = Get current saved drive info w/o updating
+   207                              <1>                             ;2 = Get physical parameters of the medium
+   208                              <1>                             ;Only meaningful on get. Set must have this as 0
+   209 00000002 ????                <1>     .wDevFlgs       dw ?    ;Only bits 0 and 1 are xmitted/read
+   210 00000004 ????                <1>     .wFSType        dw ?    ;If one, it is a FAT type. Only valid on getlba
+   211                              <1>                             ; If one, can use CHS functions with returned vals
+   212 00000006 ????                <1>     .wRes           dw ?    ;Reserved word
+   213 00000008 ????????????????    <1>     .qSectorSize    dq ?    ;Only the lower word is valid here
+   214 00000010 ????????????????    <1>     .qNumSectors    dq ?    ;Only the lower dword is valid here
+   215                              <1> ;The below is the absolute start sector of the partition. It is the 
+   216                              <1> ; partition at which to find the BPB.
+   217 00000018 ????????????????    <1>     .qStartSector   dq ?    ;Only the lower dword is valid here.
+   218                              <1> endstruc
+   219                              <1> 
+   220                              <1> struc lbaIOBlock
+   221 00000000 ??                  <1>     .size           db ?
+   222 00000001 ??                  <1>     .numSectors     db ?  ;Number of sectors to write
+   223 00000002 ????????????        <1>     .res            db 6 dup (?)
+   224 00000008 ????????????????    <1>     .startSector    dq ?  ;Sector to start write at
+   225 00000010 ????????????????    <1>     .xferBuffer     dq ?  ;Transfer buffer for data
+   226                              <1> endstruc
+   227                              <1> 
+   228                              <1> struc lbaFormatBlock
+   229 00000000 ??                  <1>     .size           db ?
+   230 00000001 ??                  <1>     .numSectors     db ?  ;Number of sectors to format
+   231 00000002 ????????????        <1>     .res            db 6 dup (?)
+   232 00000008 ????????????????    <1>     .startSector    dq ?  ;Sector to start format at
+   233                              <1> endstruc
+   234                              <1> 
+   235                              <1> struc chsParamsBlock
+   236 00000000 ??                  <1>     .bSpecFuncs db ?    ;
+   237 00000001 ??                  <1>     .bDevType   db ?    ;5 if fixed, 7 otherwise
+   238 00000002 ????                <1>     .wDevFlgs   dw ?    ;Only bits 0 and 1 are xmitted/read
+   239 00000004 ????                <1>     .wNumCyl    dw ?
+   240 00000006 ??                  <1>     .bMedTyp    db ?    ;Perma 0 for us, meaningless. Reserved.
+   241 00000007 <res 35h>           <1>     .deviceBPB  db 53 dup (?)   ;Full length with reserved bytes of BPB32
+   242                              <1>     .TrackLayout:
+   243                              <1> endstruc
+   244                              <1> 
+   245                              <1> ;Used for get and set params. Refer to DOS docs for meaning of bit.
+   246                              <1> specFuncBPB equ 1<<0    ;Does BPB stuff
+   247                              <1> ;Only used in setparams requests. Ignored for getparams 
+   248                              <1> specFuncTrk equ 1<<1    ;Set if just track layout cpy. Clear if set all.
+   249                              <1> specFuncSec equ 1<<2    ;Set if all sectors samze size. Clear if not.
+   250                              <1> 
+   251                              <1> 
+   252                              <1> struc chsIOBlock
+   253 00000000 ??                  <1>     .bSpecFuncs     db ?
+   254 00000001 ????                <1>     .wStartHead     dw ?
+   255 00000003 ????                <1>     .wStartCyl      dw ?    ;Zero based.
+   256 00000005 ????                <1>     .wStartSector   dw ?    ;Zero based.
+   257 00000007 ????                <1>     .wNumSectors    dw ?
+   258 00000009 ????????????????    <1>     .pXferBuffer    dq ?
+   259                              <1> endstruc
+   260                              <1> 
+   261                              <1> struc chsFormatBlock
+   262 00000000 ??                  <1>     .bSpecFuncs db ?
+   263 00000001 ????                <1>     .wStartHead dw ?
+   264 00000003 ????                <1>     .wStartCyl  dw ?        ;Zero based.
+   265                              <1> endstruc
+   266                              <1> 
+   267                              <1> struc accFlgBlk
+   268 00000000 ??                  <1>     .bSpecFuncs db ?    ;Must be 0
+   269 00000001 ??                  <1>     .bAccMode   db ?    ;Set if access allowed. Clear if not.
+   270                              <1> endstruc
+   271                              <1> 
+   272                              <1> struc idParamBlk
+   273 00000000 ????                <1>     .wCallLvl   dw ?    ;Should be zero
+   274 00000002 ????????            <1>     .volId      dd ?    ;Volume Id
+   275 00000006 <res Bh>            <1>     .volLab     db 11 dup (?)   ;Volume label string
+   276 00000011 ????????????????    <1>     .filSysType db 8 dup (?)    ;File system type string
+   277                              <1> endstruc
+    14                                  
+    15                                  ;---------------------
+    16                                  ; Static data tables :
+    17                                  ;---------------------
+    18                                  
+    19                                  header:
+    20 00000000 FFFFFFFFFFFFFFFF            dq -1
+    21 00000008 4008                        dw 00840h
+    22 0000000A [9200000000000000]          dq strategy
+    23 00000012 [9A00000000000000]          dq interrupt
+    24 0000001A 0000000000000000            db 8 dup (0)
+    25                                  
+    26                                  dispTbl:
+    27 00000022 BE01                        dw init - dispTbl
+    28 00000024 D400                        dw medCheck - dispTbl
+    29 00000026 DE00                        dw buildBpb - dispTbl
+    30 00000028 0000                        dw 0    ;ioctlRead
+    31 0000002A EF00                        dw read - dispTbl
+    32 0000002C 0000                        dw 0    ;ND read
+    33 0000002E 0000                        dw 0    ;input status
+    34 00000030 0000                        dw 0    ;Flush input buffer
+    35 00000032 1001                        dw write - dispTbl
+    36 00000034 1001                        dw write - dispTbl  ;Write with verify, which is just write for us
+    37 00000036 0000                        dw 0    ;Output status
+    38 00000038 0000                        dw 0    ;Flush Output buffer
+    39 0000003A 0000                        dw 0    ;ioctlWrite
+    40 0000003C 6201                        dw open - dispTbl
+    41 0000003E 7E01                        dw close - dispTbl
+    42 00000040 9A01                        dw remmed - dispTbl
+    43 00000042 0000                        dw 0    ;Out until busy
+    44 00000044 0000                        dw 0    ;Reserved (func 17)
+    45 00000046 0000                        dw 0    ;Reserved (func 18)
+    46 00000048 AA01                        dw ioctl - dispTbl
+    47 0000004A B001                        dw getDrvMap - dispTbl
+    48 0000004C 0000                        dw 0    ;Set Drive map (Does nothing as we have one unit)
+    49                                  
+    50                                  ramBpb:
+    51                                      istruc bpb              ;Fat 16 image
+    52 0000004E 0002                            at .bytsPerSec, dw 512   ;Bytes per sector
+    53 00000050 02                              at .secPerClus, db 2     ;Sectors per cluster (1Kb clusters)
+    54 00000051 0100                            at .revdSecCnt, dw 1     ;Number of reserved sectors, in volume
+    55 00000053 01                              at .numFATs,    db 1     ;Number of FATs on media
+    56 00000054 0002                            at .rootEntCnt, dw 512   ;512 entries in Root directory
+    57 00000056 7F4E                            at .totSec16,   dw 4E7Fh ;Number of sectors on medium (~10Mb)
+    58 00000058 FA                              at .media,      db 0FAh  ;Media descriptor byte
+    59 00000059 2800                            at .FATsz16,    dw 40    ;Number of sectors per FAT
+    60 0000005B 3F00                            at .secPerTrk,  dw 3Fh   ;Number of sectors per "track"
+    61 0000005D FF00                            at .numHeads,   dw 0FFh  ;Number of read "heads"
+    62 0000005F 00000000                        at .hiddSec,    dd 0     ;Number of hidden sectors, preceeding volume start
+    63 00000063 00000000                        at .totSec32,   dd 0     ;32 bit count of sectors
+    64                                      iend
+    65                                  ;Reference BPB from dummy hard disk image. 
+    66                                  ;Clearly a bug in FORMAT that always places total sector count in totSec32
+    67                                  ;0200
+    68                                  ;02
+    69                                  ;0001
+    70                                  ;02
+    71                                  ;0200h
+    72                                  ;0000
+    73                                  ;F8
+    74                                  ;0028
+    75                                  ;003F
+    76                                  ;00FF
+    77                                  ;00000040
+    78                                  ;00004E7F
+    79                                  
+    80                                  ;------------
+    81                                  ; Variables :
+    82                                  ;------------
+    83                                  
+    84 00000067 00                      bDrvInit    db 0        ;Set to -1 if we have been initialised.
+    85 00000068 0000000000000000        pReqPkt     dq 0        ;Ptr to request packet
+    86 00000070 0000000000000000        pAlloc      dq 0        ;Ptr to allocated ram for ramdisk
+    87 00000078 0000                    wOpenCnt    dw 0        ;Open counter
+    88 0000007A 0000000000000000        qMaxSector  dq 0        ;The maximum sector address
+    89 00000082 FF                      bUnitNumber db -1       ;DOS Unit number for this drive
+    90                                  
+    91                                  ;-------------------------
+    92                                  ; Common error functions :
+    93                                  ;-------------------------
+    94                                  
+    95                                  errBadCmd:
+    96                                  ;Called if the command code is bad or IOCTL command issued.
+    97 00000083 66C743030380                mov word [rbx + ioctlReqPkt.status], drvErrStatus | drvBadCmd
+    98 00000089 EB43                        jmp short interrupt.exit
+    99                                  
+   100                                  errBadReqLen:
+   101                                  ;Jumped to if req packet length is bad on a request we handle.
+   102                                  ;Only accessed from within a function, so returns.
+   103 0000008B 66C743030580                mov word [rbx + ioctlReqPkt.status], drvErrStatus | drvBadDrvReq
+   104                                      return
+    13                              <1> %%_ret:
+    14 00000091 C3                  <1>  ret
+    15                              <1> %assign retOff %%_ret-$$
+   105                                  
+   106                                  ;-------------------------------
+   107                                  ; Strat and Interrupt routines :
+   108                                  ;-------------------------------
+   109                                  
+   110                                  strategy:
+   111                                  ;Input: rbx -> Request packet to execute!
+   112 00000092 48891DCFFFFFFF              mov qword [pReqPkt], rbx
+   113                                      return
+    13                              <1> %%_ret:
+    14 00000099 C3                  <1>  ret
+    15                              <1> %assign retOff %%_ret-$$
+   114                                  
+   115                                  interrupt:
+   116                                  ;All registers used must be preserved.
+   117 0000009A 50                          push rax
+   118 0000009B 53                          push rbx
+   119 0000009C 51                          push rcx
+   120 0000009D 56                          push rsi
+   121 0000009E 57                          push rdi
+   122 0000009F 488B1DC2FFFFFF              mov rbx, qword [pReqPkt]
+   123 000000A6 66C743030000                mov word [rbx + drvReqPkt.status], 0    ;Clear the status word
+   124 000000AC 0FB64302                    movzx eax, byte [rbx + drvReqPkt.cmdcde]  ;Get the command code
+   125 000000B0 3D18000000                  cmp eax, drvMAXCMD
+   126 000000B5 77CC                        ja errBadCmd
+   127 000000B7 488D3564FFFFFF              lea rsi, dispTbl
+   128 000000BE 488D3C46                    lea rdi, word [rsi + 2*rax]   ;Point rdi to the entry
+   129 000000C2 0FB707                      movzx eax, word [rdi]   ;Read the word from the table
+   130 000000C5 85C0                        test eax, eax           ;If the word is 0, we silently return ok!
+   131 000000C7 7405                        jz .exit            
+   132 000000C9 4801C6                      add rsi, rax            ;Add to rsi to get the pointer to the routine
+   133 000000CC FFD6                        call rsi                ;Call the routine
+   134                                  .exit:
+   135 000000CE 66814B030001                or word [rbx + drvReqPkt.status], drvDonStatus  ;Set packet processed bit!
+   136 000000D4 5F                          pop rdi
+   137 000000D5 5E                          pop rsi
+   138 000000D6 59                          pop rcx
+   139 000000D7 5B                          pop rbx
+   140 000000D8 58                          pop rax
+   141                                      return
+    13                              <1> %%_ret:
+    14 000000D9 C3                  <1>  ret
+    15                              <1> %assign retOff %%_ret-$$
+   142                                  .checkUnit:
+   143                                  ;Does nothing during device init. Else checks the unit requested is ours.
+   144 000000DA 3D00000000                  cmp eax, drvINIT
+   145                                      rete
+    49                              <1> cret e
+    19                              <2> %%_base:
+    20                              <2> %assign baseVar %%_base-$$
+    21                              <2>  %ifdef retOff
+    22                              <2>  %if (baseVar - retOff <= 126) && (baseVar > retOff)
+    23                              <2>  %ifdef currSegVBase
+    24                              <2>  j%+1 short (retOff+currSegVBase)
+    25                              <2>  %else
+    26 000000DF 74(D9)              <2>  j%+1 short retOff
+    27                              <2>  %endif
+    28                              <2>  %else
+    29                              <2>  j%-1 short %%a
+    30                              <2>  return
+    31                              <2> %%a:
+    32                              <2>  %endif
+    33                              <2>  %else
+    34                              <2>  j%-1 short %%a
+    35                              <2>  return
+    36                              <2> %%a:
+    37                              <2>  %endif
+   146 000000E1 0FB64301                    movzx eax, byte [rbx + drvReqPkt.unitnm]    ;Get unit requested on
+   147 000000E5 380597FFFFFF                cmp byte [bUnitNumber], al
+   148                                      rete
+    49                              <1> cret e
+    19                              <2> %%_base:
+    20                              <2> %assign baseVar %%_base-$$
+    21                              <2>  %ifdef retOff
+    22                              <2>  %if (baseVar - retOff <= 126) && (baseVar > retOff)
+    23                              <2>  %ifdef currSegVBase
+    24                              <2>  j%+1 short (retOff+currSegVBase)
+    25                              <2>  %else
+    26 000000EB 74(D9)              <2>  j%+1 short retOff
+    27                              <2>  %endif
+    28                              <2>  %else
+    29                              <2>  j%-1 short %%a
+    30                              <2>  return
+    31                              <2> %%a:
+    32                              <2>  %endif
+    33                              <2>  %else
+    34                              <2>  j%-1 short %%a
+    35                              <2>  return
+    36                              <2> %%a:
+    37                              <2>  %endif
+   149 000000ED 58                          pop rax ;Pop original return address off of stack
+   150 000000EE 66C743030180                mov word [rbx + ioctlReqPkt.status], drvErrStatus | drvBadUnit
+   151 000000F4 EBD8                        jmp short .exit
+   152                                  
+   153                                  ;----------------
+   154                                  ; Main routines :
+   155                                  ;----------------
+   156                                  
+   157                                  medCheck:
+   158                                  ;Returns media ok
+   159 000000F6 803B17                      cmp byte [rbx + mediaCheckReqPkt.hdrlen], mediaCheckReqPkt_size
+   160 000000F9 7590                        jne errBadReqLen
+   161 000000FB C6430E01                    mov byte [rbx + mediaCheckReqPkt.medret], 1 ;Report no media change
+   162                                      return
+    13                              <1> %%_ret:
+    14 000000FF C3                  <1>  ret
+    15                              <1> %assign retOff %%_ret-$$
+   163                                  
+   164                                  buildBpb:
+   165                                  ;Always returns the BPB above
+   166 00000100 803B1E                      cmp byte [rbx + bpbBuildReqPkt.hdrlen], bpbBuildReqPkt_size
+   167 00000103 7586                        jne errBadReqLen
+   168 00000105 488D3542FFFFFF              lea rsi, ramBpb
+   169 0000010C 48897316                    mov qword [rbx + bpbBuildReqPkt.bpbptr], rsi
+   170                                      return
+    13                              <1> %%_ret:
+    14 00000110 C3                  <1>  ret
+    15                              <1> %assign retOff %%_ret-$$
+   171                                  
+   172                                  read:
+   173 00000111 803B2A                      cmp byte [rbx + ioReqPkt.hdrlen], ioReqPkt_size
+   174 00000114 0F8571FFFFFF                jne errBadReqLen
+   175 0000011A E834000000                  call write.checkRange   ;Check IO range ok.
+   176                                      retc
+    57                              <1> cret c
+    19                              <2> %%_base:
+    20                              <2> %assign baseVar %%_base-$$
+    21                              <2>  %ifdef retOff
+    22                              <2>  %if (baseVar - retOff <= 126) && (baseVar > retOff)
+    23                              <2>  %ifdef currSegVBase
+    24                              <2>  j%+1 short (retOff+currSegVBase)
+    25                              <2>  %else
+    26 0000011F 72(10)              <2>  j%+1 short retOff
+    27                              <2>  %endif
+    28                              <2>  %else
+    29                              <2>  j%-1 short %%a
+    30                              <2>  return
+    31                              <2> %%a:
+    32                              <2>  %endif
+    33                              <2>  %else
+    34                              <2>  j%-1 short %%a
+    35                              <2>  return
+    36                              <2> %%a:
+    37                              <2>  %endif
+   177                                  ;Here rax and rcx set with bytes for xfr
+   178 00000121 488B3548FFFFFF              mov rsi, qword [pAlloc]
+   179 00000128 488B7B0E                    mov rdi, qword [rbx + ioReqPkt.bufptr]
+   180 0000012C 4801C6                      add rsi, rax
+   181 0000012F F3A4                        rep movsb
+   182                                      return
+    13                              <1> %%_ret:
+    14 00000131 C3                  <1>  ret
+    15                              <1> %assign retOff %%_ret-$$
+   183                                  write:
+   184 00000132 803B2A                      cmp byte [rbx + ioReqPkt.hdrlen], ioReqPkt_size
+   185 00000135 0F8550FFFFFF                jne errBadReqLen
+   186 0000013B E813000000                  call .checkRange    ;Check IO range ok.
+   187                                      retc
+    57                              <1> cret c
+    19                              <2> %%_base:
+    20                              <2> %assign baseVar %%_base-$$
+    21                              <2>  %ifdef retOff
+    22                              <2>  %if (baseVar - retOff <= 126) && (baseVar > retOff)
+    23                              <2>  %ifdef currSegVBase
+    24                              <2>  j%+1 short (retOff+currSegVBase)
+    25                              <2>  %else
+    26 00000140 72(31)              <2>  j%+1 short retOff
+    27                              <2>  %endif
+    28                              <2>  %else
+    29                              <2>  j%-1 short %%a
+    30                              <2>  return
+    31                              <2> %%a:
+    32                              <2>  %endif
+    33                              <2>  %else
+    34                              <2>  j%-1 short %%a
+    35                              <2>  return
+    36                              <2> %%a:
+    37                              <2>  %endif
+   188                                  ;Here rax and rcx set with bytes for xfr
+   189 00000142 488B730E                    mov rsi, qword [rbx + ioReqPkt.bufptr]
+   190 00000146 488B3D23FFFFFF              mov rdi, qword [pAlloc]
+   191 0000014D 4801C7                      add rdi, rax
+   192 00000150 F3A4                        rep movsb
+   193                                      return
+    13                              <1> %%_ret:
+    14 00000152 C3                  <1>  ret
+    15                              <1> %assign retOff %%_ret-$$
+   194                                  .checkRange:
+   195                                  ;Checks the range of the xfr is ok.
+   196                                  ;Returns: CF=NC: Range ok. 
+   197                                  ;           rax = Byte to start xfr on
+   198                                  ;           rcx = Number of bytes to xft
+   199                                  ;         CF=CY: Range not ok! Error bit and code set in status word
+   200 00000153 488B431A                    mov rax, qword [rbx + ioReqPkt.strtsc]  ;Get the starting sector
+   201 00000157 483B051CFFFFFF              cmp rax, qword [qMaxSector]
+   202 0000015E 771D                        ja .badSector
+   203 00000160 8B4B16                      mov ecx, dword [rbx + ioReqPkt.tfrlen]
+   204 00000163 50                          push rax
+   205 00000164 4801C8                      add rax, rcx
+   206 00000167 48FFC8                      dec rax         ;Decrement by 1 as ecx countains count!
+   207 0000016A 483B0509FFFFFF              cmp rax, qword [qMaxSector]
+   208 00000171 58                          pop rax
+   209 00000172 7709                        ja .badSector
+   210 00000174 48C1E009                    shl rax, 9  ;Multiply by 9 to get the byte to start xfr at 
+   211 00000178 48C1E109                    shl rcx, 9  ;Multiply by 9 to get number of bytes to transfer
+   212                                      return
+    13                              <1> %%_ret:
+    14 0000017C C3                  <1>  ret
+    15                              <1> %assign retOff %%_ret-$$
+   213                                  .badSector:
+   214                                  ;Set the error code and return
+   215 0000017D 66C743030880                mov word [rbx + ioctlReqPkt.status], drvErrStatus | drvSecNotFnd
+   216                                      return
+    13                              <1> %%_ret:
+    14 00000183 C3                  <1>  ret
+    15                              <1> %assign retOff %%_ret-$$
+   217                                  
+   218                                  open:
+   219 00000184 803B0D                      cmp byte [rbx + openReqPkt.hdrlen], openReqPkt_size
+   220 00000187 0F85FEFEFFFF                jne errBadReqLen
+   221                                  ;Inc past -1 does nothing as DOS never checks error here
+   222 0000018D 66813DE2FEFFFFFFFF          cmp word [wOpenCnt], -1
+   223                                      rete
+    49                              <1> cret e
+    19                              <2> %%_base:
+    20                              <2> %assign baseVar %%_base-$$
+    21                              <2>  %ifdef retOff
+    22                              <2>  %if (baseVar - retOff <= 126) && (baseVar > retOff)
+    23                              <2>  %ifdef currSegVBase
+    24                              <2>  j%+1 short (retOff+currSegVBase)
+    25                              <2>  %else
+    26 00000196 74(83)              <2>  j%+1 short retOff
+    27                              <2>  %endif
+    28                              <2>  %else
+    29                              <2>  j%-1 short %%a
+    30                              <2>  return
+    31                              <2> %%a:
+    32                              <2>  %endif
+    33                              <2>  %else
+    34                              <2>  j%-1 short %%a
+    35                              <2>  return
+    36                              <2> %%a:
+    37                              <2>  %endif
+   224 00000198 66FF05D9FEFFFF              inc word [wOpenCnt]
+   225                                      return
+    13                              <1> %%_ret:
+    14 0000019F C3                  <1>  ret
+    15                              <1> %assign retOff %%_ret-$$
+   226                                  close:
+   227 000001A0 803B0D                      cmp byte [rbx + closeReqPkt.hdrlen], closeReqPkt_size
+   228 000001A3 0F85E2FEFFFF                jne errBadReqLen
+   229                                  ;Dec past zero does nothing as DOS never checks error here
+   230 000001A9 66813DC6FEFFFF0000          cmp word [wOpenCnt], 0
+   231                                      rete
+    49                              <1> cret e
+    19                              <2> %%_base:
+    20                              <2> %assign baseVar %%_base-$$
+    21                              <2>  %ifdef retOff
+    22                              <2>  %if (baseVar - retOff <= 126) && (baseVar > retOff)
+    23                              <2>  %ifdef currSegVBase
+    24                              <2>  j%+1 short (retOff+currSegVBase)
+    25                              <2>  %else
+    26 000001B2 74(9F)              <2>  j%+1 short retOff
+    27                              <2>  %endif
+    28                              <2>  %else
+    29                              <2>  j%-1 short %%a
+    30                              <2>  return
+    31                              <2> %%a:
+    32                              <2>  %endif
+    33                              <2>  %else
+    34                              <2>  j%-1 short %%a
+    35                              <2>  return
+    36                              <2> %%a:
+    37                              <2>  %endif
+   232 000001B4 66FF0DBDFEFFFF              dec word [wOpenCnt]
+   233                                      return
+    13                              <1> %%_ret:
+    14 000001BB C3                  <1>  ret
+    15                              <1> %assign retOff %%_ret-$$
+   234                                  remmed:
+   235 000001BC 803B0D                      cmp byte [rbx + remMediaReqPkt.hdrlen], remMediaReqPkt_size
+   236 000001BF 0F85C6FEFFFF                jne errBadReqLen
+   237                                  ;Return indicator that we are a fixed disk
+   238 000001C5 66C743030002                mov word [rbx + remMediaReqPkt.status], drvBsyStatus
+   239                                      return
+    13                              <1> %%_ret:
+    14 000001CB C3                  <1>  ret
+    15                              <1> %assign retOff %%_ret-$$
+   240                                  
+   241                                  ioctl:
+   242                                  ;All IOCTL calls fail as if the driver didnt understand the command!
+   243 000001CC 58                          pop rax ;Pop the return address off the stack
+   244 000001CD E9B1FEFFFF                  jmp errBadCmd
+   245                                  
+   246                                  getDrvMap:
+   247                                  ;Returns an indication that we do not have multiple units
+   248 000001D2 803B0D                      cmp byte [rbx + getDevReqPkt.hdrlen], getDevReqPkt_size
+   249 000001D5 0F85B0FEFFFF                jne errBadReqLen
+   250 000001DB C6430100                    mov byte [rbx + getDevReqPkt.unitnm], 0
+   251                                      return
+    13                              <1> %%_ret:
+    14 000001DF C3                  <1>  ret
+    15                              <1> %assign retOff %%_ret-$$
+   252                                  
+   253                                  ;------------------
+   254                                  ; Init trampoline :
+   255                                  ;------------------
+   256                                  init:
+   257 000001E0 F60580FEFFFFFF              test byte [bDrvInit], -1
+   258 000001E7 75E3                        jnz ioctl   ;Once initialised, we return bad command. Behave like ioctl.
+   259                                  ;Else, fall through to the initialisation routine (which we eject)
+   260                                  eject:
+   261                                  ;-------------------------
+   262                                  ; Initialisation routine :
+   263                                  ;-------------------------
+   264                                  initMain:
+   265 000001E9 803B1F                      cmp byte [rbx + initReqPkt.hdrlen], initReqPkt_size
+   266 000001EC 0F8599FEFFFF                jne errBadReqLen
+   267                                  ;Start by trying to allocate memory.
+   268 000001F2 52                          push rdx
+   269 000001F3 488D1546010000              lea rdx, initStr
+   270 000001FA B800090000                  mov eax, 0900h
+   271 000001FF CD21                        int 21h
+   272                                  
+   273 00000201 488D3546FEFFFF              lea rsi, ramBpb ;Point rsi to the ram bpb
+   274                                  ;Here we parse the input string. Values get copied into the bpb.
+   275                                  ;In v1 there is nothing so we do nothing here.
+   276                                  
+   277                                  ;First compute the max sector address!!
+   278 00000208 0FB74608                    movzx eax, word [rsi + bpb.totSec16]
+   279 0000020C FFC8                        dec eax
+   280 0000020E 48890565FEFFFF              mov qword [qMaxSector], rax     ;In v1 this should be 4E7Eh
+   281                                  ;Now compute the bytes per sector shift. We only accept sector sizes of
+   282                                  ; 128, 256, 512 or 1024. Default to 512 if something weird found.
+   283 00000215 0FB706                      movzx eax, word [rsi + bpb.bytsPerSec]
+   284 00000218 3D80000000                  cmp eax, 128
+   285 0000021D 7509                        jne .not128
+   286 0000021F C6056201000007              mov byte [bBytSectShft], 7
+   287 00000226 EB27                        jmp short .shiftOk
+   288                                  .not128:
+   289 00000228 3D00010000                  cmp eax, 256
+   290 0000022D 7509                        jne .not256
+   291 0000022F C6055201000008              mov byte [bBytSectShft], 8
+   292 00000236 EB17                        jmp short .shiftOk
+   293                                  .not256:
+   294 00000238 3D00040000                  cmp eax, 1024
+   295 0000023D 7509                        jne .not1024
+   296 0000023F C605420100000A              mov byte [bBytSectShft], 10
+   297 00000246 EB07                        jmp short .shiftOk
+   298                                  .not1024:
+   299 00000248 C6053901000009              mov byte [bBytSectShft], 9  ;Default value
+   300                                  .shiftOk:
+   301                                  ;Now we allocate our "disk" in RAM
+   302 0000024F 0FB74608                    movzx eax, word [rsi + bpb.totSec16]    ;Allocation size in sectors
+   303 00000253 0FB60D2E010000              movzx ecx, byte [bBytSectShft]          ;Get shift value
+   304 0000025A 81E904000000                sub ecx, 4      ;Turn sector->byte shift to sector->paragraphs shift
+   305 00000260 D3E0                        shl eax, cl     ;Get number of paragraphs for these sectors
+   306 00000262 53                          push rbx        ;Save the request packet pointer on the stack
+   307 00000263 89C3                        mov ebx, eax    ;Move paragraphs into ebx for DOS call
+   308 00000265 B800480000                  mov eax, 4800h
+   309 0000026A CD21                        int 21h
+   310 0000026C 5B                          pop rbx         ;Get the request packet pointer from the stack
+   311 0000026D 0F82A6000000                jc .failinit
+   312                                  
+   313 00000273 488905F6FDFFFF              mov qword [pAlloc], rax ;Save the pointer to our ramdrive
+   314 0000027A 4889C7                      mov rdi, rax            ;Move pointer to rdi
+   315                                  
+   316 0000027D 57                          push rdi                                ;Save the pointer on stack
+   317 0000027E 0FB74E0B                    movzx ecx, word [rsi + bpb.FATsz16]     ;#of sectors for the fat
+   318 00000282 0FB74603                    movzx eax, word [rsi + bpb.revdSecCnt]  ;Get reserved sector count
+   319 00000286 01C8                        add eax, ecx                            ;Add Reserved sector
+   320 00000288 0FB60DF9000000              movzx ecx, byte [bBytSectShft]          ;Get the shift value
+   321 0000028F D3E0                        shl eax, cl                             ;Get bytes
+   322 00000291 89C1                        mov ecx, eax                            ;Store it in ecx
+   323                                  ;We ensure # of root dir entries fill up sector
+   324 00000293 0FB74606                    movzx eax, word [rsi + bpb.rootEntCnt]  ;Get # of 32 byte entries
+   325 00000297 C1E005                      shl eax, 5                              ;Multiply by 32 to get bytes
+   326 0000029A 01C1                        add ecx, eax                            ;Sum them together
+   327 0000029C 31C0                        xor eax, eax
+   328 0000029E F3AA                        rep stosb       ;Clean memory
+   329 000002A0 5F                          pop rdi         ;Point back to the start of the in memory ram
+   330                                  
+   331 000002A1 57                          push rdi        ;And save this pointer one more time
+   332 000002A2 56                          push rsi        ;Push pointer to BPB 
+   333 000002A3 488D35D6000000              lea rsi, OEMstring
+   334 000002AA 4881C703000000              add rdi, 3      ;Go past the jump bytes
+   335 000002B1 48A5                        movsq           ;Move the string over
+   336 000002B3 5E                          pop rsi         ;Point rsi back to the BPB
+   337 000002B4 56                          push rsi        ;And save it once more
+   338 000002B5 B919000000                  mov ecx, bpb_size
+   339 000002BA F3A4                        rep movsb       ;Now copy the BPB over
+   340 000002BC 5E                          pop rsi         ;Move rsi back to the start of the bpb
+   341 000002BD 5F                          pop rdi         ;and move rdi back to the start of the arena
+   342 000002BE 0FB70E                      movzx ecx, word [rsi + bpb.bytsPerSec]
+   343 000002C1 4801CF                      add rdi, rcx    ;Move rdi to the start of the next "sector"
+   344 000002C4 48B8FAFFFFFF000000-         mov rax, 0FFFFFFFAh ;Store the initial Qword of the FAT
+   344 000002CD 00                 
+   345 000002CE 48AB                        stosq
+   346 000002D0 488D1585000000              lea rdx, initDoneStr
+   347 000002D7 B800090000                  mov eax, 0900h
+   348 000002DC CD21                        int 21h
+   349                                  ;Now setup return values in the packet and read the unit number from it
+   350                                  ; and finish by setting the init lock
+   351 000002DE 488D3569FDFFFF              lea rsi, ramBpb                 ;Should be ok to remove this!!
+   352 000002E5 4889354C000000              mov qword [pBpbArray], rsi
+   353 000002EC 488D3545000000              lea rsi, pBpbArray
+   354 000002F3 48897316                    mov qword [rbx + initReqPkt.optptr], rsi    ;Move pointer
+   355 000002F7 488D35EBFEFFFF              lea rsi, eject
+   356 000002FE 4889730E                    mov qword [rbx + initReqPkt.endptr], rsi    ;Eject all this code
+   357 00000302 C6430D01                    mov byte [rbx + initReqPkt.numunt], 1       ;Have 1 block unit
+   358 00000306 0FB6431E                    movzx eax, byte [rbx + initReqPkt.drvnum]   ;Get the unit number
+   359 0000030A 880572FDFFFF                mov byte [bUnitNumber], al
+   360 00000310 C60550FDFFFFFF              mov byte [bDrvInit], -1                     ;Set init lock
+   361 00000317 5A                          pop rdx
+   362                                      return
+    13                              <1> %%_ret:
+    14 00000318 C3                  <1>  ret
+    15                              <1> %assign retOff %%_ret-$$
+   363                                  .failinit:
+   364 00000319 488D1555000000              lea rdx, initFailStr
+   365 00000320 B800090000                  mov eax, 0900h
+   366 00000325 CD21                        int 21h
+   367 00000327 488D35D2FCFFFF              lea rsi, header
+   368 0000032E 4889730E                    mov qword [rbx + initReqPkt.endptr], rsi    ;Free the driver allocation
+   369 00000332 C6430D00                    mov byte [rbx + initReqPkt.numunt], 0       ;Have no block units
+   370 00000336 5A                          pop rdx
+   371                                      return
+    13                              <1> %%_ret:
+    14 00000337 C3                  <1>  ret
+    15                              <1> %assign retOff %%_ret-$$
+   372                                  
+   373                                  ;Temp vars and data that are ejected after alloc
+   374 00000338 0000000000000000        pBpbArray   dq 0
+   375 00000340 0A0D496E697469616C-     initStr     db 0Ah,0Dh,"Initialising RAM drive...$"
+   375 00000349 6973696E672052414D-
+   375 00000352 2064726976652E2E2E-
+   375 0000035B 24                 
+   376 0000035C 20646F6E652E20416C-     initDoneStr db " done. Allocated: 10Mb",0Ah,0Dh,"$"
+   376 00000365 6C6F63617465643A20-
+   376 0000036E 31304D620A0D24     
+   377 00000375 206661696C65642E0A-     initFailStr db " failed.",0Ah,0Dh,"$"
+   377 0000037E 0D24               
+   378 00000380 52414D4452495645        OEMstring   db "RAMDRIVE"
+   379                                  
+   380 00000388 09                      bBytSectShft    db 9    ;Shift value to convert bytes to sectors
+   380          ------------------       info: assembly required 1+2+2 passes
+
